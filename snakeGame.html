@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐍</text></svg>">
+    <title>Snake Game</title>
+    <style>
+        /* ===== CORES E CONFIGURAÇÕES BÁSICAS ===== */
+        body {
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(to bottom, #e8f7ea, #bdecb6);
+            font-family: Arial, sans-serif;
+            text-align: center;
+            min-height: 100vh;
+        }
+
+        /* ===== CABEÇALHO ===== */
+        .header {
+            margin-bottom: 20px;
+        }
+
+        .title {
+            font-size: 24px;
+            color: #064e2d;
+            margin-bottom: 10px;
+        }
+
+        .score {
+            font-size: 18px;
+            color: #0b3b20;
+            background: rgba(255, 255, 255, 0.7);
+            padding: 8px 15px;
+            border-radius: 10px;
+            display: inline-block;
+        }
+
+        /* ===== ÁREA DO JOGO ===== */
+        .game-area {
+            margin: 20px 0;
+        }
+
+        #gameCanvas {
+            background: #a5d6a7;
+            border: 5px solid #2f6f3f;
+            border-radius: 10px;
+            max-width: 100%;
+        }
+
+        /* ===== CONTROLES ===== */
+        .controls {
+            margin-top: 20px;
+        }
+
+        .direction-buttons {
+            margin-bottom: 15px;
+        }
+
+        .button-row {
+            margin: 5px 0;
+        }
+
+        .game-button {
+            background: #2e7d32;
+            color: white;
+            border: none;
+            padding: 12px 15px;
+            margin: 3px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            min-width: 50px;
+        }
+
+        .game-button:hover {
+            background: #25622b;
+        }
+
+        .game-button:active {
+            transform: scale(0.95);
+        }
+
+        .action-buttons {
+            margin-top: 15px;
+        }
+
+        .action-button {
+            background: #2e7d32;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .hint {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #2f6f3f;
+        }
+
+        /* ===== GAME OVER ===== */
+        .game-over {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            display: none;
+        }
+
+        .game-over h2 {
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+
+        /* ===== RESPONSIVO ===== */
+        @media (max-width: 500px) {
+            .game-button {
+                padding: 10px 12px;
+                font-size: 14px;
+                min-width: 45px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- CABEÇALHO -->
+    <div class="header">
+        <h1 class="title">🐍 Jogo da Cobrinha</h1>
+        <div class="score" id="pontuacao">Pontuação: 0</div>
+    </div>
+
+    <!-- ÁREA DO JOGO -->
+    <div class="game-area">
+        <canvas id="gameCanvas" width="400" height="400"></canvas>
+    </div>
+
+    <!-- CONTROLES -->
+    <div class="controls">
+        <div class="direction-buttons">
+            <div class="button-row">
+                <button class="game-button" id="botaoCima">⬆️</button>
+            </div>
+            <div class="button-row">
+                <button class="game-button" id="botaoEsquerda">⬅️</button>
+                <button class="game-button" id="botaoBaixo">⬇️</button>
+                <button class="game-button" id="botaoDireita">➡️</button>
+            </div>
+        </div>
+
+        <div class="action-buttons">
+            <button class="action-button" id="botaoReiniciar">🔄 Reiniciar</button>
+            <button class="action-button" id="botaoVelocidade">⚡ Velocidade: Normal</button>
+        </div>
+
+        <div class="hint">
+            Use as setas do teclado (↑↓←→) ou os botões acima
+        </div>
+    </div>
+
+    <!-- GAME OVER POPUP -->
+    <div class="game-over" id="gameOverPopup">
+        <h2>Game Over! 💀</h2>
+        <p>Sua pontuação: <span id="pontuacaoFinal">0</span></p>
+        <button class="action-button" onclick="reiniciarJogo()">🔄 Jogar Novamente</button>
+    </div>
+
+    <script>
+        // ==========================================
+        // VARIÁVEIS GLOBAIS (Estado do Jogo)
+        // ==========================================
+        
+        // Elementos da página
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const pontuacaoElemento = document.getElementById('pontuacao');
+        const gameOverPopup = document.getElementById('gameOverPopup');
+        const pontuacaoFinal = document.getElementById('pontuacaoFinal');
+
+        // Configurações do tabuleiro
+        const TAMANHO_CELULA = 20;
+        const LARGURA_TABULEIRO = canvas.width / TAMANHO_CELULA;  // 20 células
+        const ALTURA_TABULEIRO = canvas.height / TAMANHO_CELULA;  // 20 células
+
+        // Estado atual do jogo
+        let cobrinha = [{ x: 10, y: 10 }];  // Posição inicial da cobra
+        let direcao = 'direita';            // Direção atual
+        let comida = { x: 15, y: 15 };      // Posição da comida
+        let pontuacao = 0;                  // Pontuação do jogador
+        let jogoRodando = false;            // Se o jogo está ativo
+        let velocidadeJogo = 200;           // Velocidade em milissegundos
+        let velocidadeAtual = 1;            // 0=lenta, 1=normal, 2=rápida
+
+        // Velocidades disponíveis
+        const VELOCIDADES = [300, 200, 100];
+        const NOMES_VELOCIDADES = ['Lenta', 'Normal', 'Rápida'];
+
+        // ==========================================
+        // FUNÇÕES PRINCIPAIS DO JOGO
+        // ==========================================
+
+        /**
+         * Inicia o jogo pela primeira vez
+         */
+        function iniciarJogo() {
+            console.log('🎮 Iniciando o jogo...');
+            
+            // Configura os controles
+            configurarControles();
+            
+            // Reinicia o jogo
+            reiniciarJogo();
+        }
+
+        /**
+         * Reinicia o jogo do zero
+         */
+        function reiniciarJogo() {
+            console.log('🔄 Reiniciando jogo...');
+            
+            // Reseta todas as variáveis
+            cobrinha = [{ x: 10, y: 10 }];
+            direcao = 'direita';
+            pontuacao = 0;
+            jogoRodando = true;
+            
+            // Gera nova comida
+            gerarNovaComida();
+            
+            // Atualiza a tela
+            atualizarPontuacao();
+            desenharJogo();
+            
+            // Esconde o popup de game over
+            gameOverPopup.style.display = 'none';
+            
+            // Inicia o loop do jogo
+            iniciarLoopJogo();
+        }
+
+        /**
+         * Para o jogo (Game Over)
+         */
+        function pararJogo() {
+            console.log('💀 Game Over!');
+            
+            jogoRodando = false;
+            pontuacaoFinal.textContent = pontuacao;
+            gameOverPopup.style.display = 'block';
+            
+            // Para o som (se houver)
+            tocarSomGameOver();
+        }
+
+        /**
+         * Loop principal do jogo (roda a cada X milissegundos)
+         */
+        function loopJogo() {
+            if (!jogoRodando) return;
+            
+            moverCobrinha();
+            verificarColisoes();
+            verificarComida();
+            desenharJogo();
+        }
+
+        /**
+         * Inicia o timer que roda o jogo
+         */
+        function iniciarLoopJogo() {
+            // Para o timer anterior (se existir)
+            if (window.timerJogo) {
+                clearInterval(window.timerJogo);
+            }
+            
+            // Inicia novo timer
+            window.timerJogo = setInterval(loopJogo, velocidadeJogo);
+        }
+
+        // ==========================================
+        // MOVIMENTO E LÓGICA DA COBRINHA
+        // ==========================================
+
+        /**
+         * Move a cobrinha na direção atual
+         */
+        function moverCobrinha() {
+            // Pega a cabeça atual da cobra
+            const cabeca = { ...cobrinha[0] };
+            
+            // Move a cabeça baseado na direção
+            if (direcao === 'cima') cabeca.y -= 1;
+            if (direcao === 'baixo') cabeca.y += 1;
+            if (direcao === 'esquerda') cabeca.x -= 1;
+            if (direcao === 'direita') cabeca.x += 1;
+            
+            // Adiciona nova cabeça
+            cobrinha.unshift(cabeca);
+            
+            // Remove a cauda (se não comeu comida)
+            // Nota: se comeu comida, a cauda não é removida, fazendo a cobra crescer
+        }
+
+        /**
+         * Muda a direção da cobrinha (evita reverter)
+         */
+        function mudarDirecao(novaDirecao) {
+            console.log('🎯 Mudando direção para:', novaDirecao);
+            
+            // Evita que a cobra vá na direção oposta
+            const direcaoOposta = {
+                'cima': 'baixo',
+                'baixo': 'cima',
+                'esquerda': 'direita',
+                'direita': 'esquerda'
+            };
+            
+            // Só muda se não for direção oposta
+            if (novaDirecao !== direcaoOposta[direcao]) {
+                direcao = novaDirecao;
+            }
+        }
+
+        // ==========================================
+        // VERIFICAÇÕES E COLISÕES
+        // ==========================================
+
+        /**
+         * Verifica se houve colisão (parede ou próprio corpo)
+         */
+        function verificarColisoes() {
+            const cabeca = cobrinha[0];
+            
+            // Bateu na parede?
+            if (cabeca.x < 0 || cabeca.x >= LARGURA_TABULEIRO || 
+                cabeca.y < 0 || cabeca.y >= ALTURA_TABULEIRO) {
+                console.log('💥 Bateu na parede!');
+                pararJogo();
+                return;
+            }
+            
+            // Bateu no próprio corpo?
+            for (let i = 1; i < cobrinha.length; i++) {
+                if (cabeca.x === cobrinha[i].x && cabeca.y === cobrinha[i].y) {
+                    console.log('💥 Bateu no próprio corpo!');
+                    pararJogo();
+                    return;
+                }
+            }
+        }
+
+        /**
+         * Verifica se a cobrinha comeu a comida
+         */
+        function verificarComida() {
+            const cabeca = cobrinha[0];
+            
+            // Comeu a comida?
+            if (cabeca.x === comida.x && cabeca.y === comida.y) {
+                console.log('🍎 Comeu comida! Pontuação:', pontuacao + 1);
+                
+                // Aumenta pontuação
+                pontuacao++;
+                atualizarPontuacao();
+                
+                // Gera nova comida
+                gerarNovaComida();
+                
+                // Toca som
+                tocarSomComida();
+                
+                // Nota: a cauda não é removida, então a cobra cresce automaticamente
+            } else {
+                // Não comeu, remove a cauda
+                cobrinha.pop();
+            }
+        }
+
+        /**
+         * Gera uma nova posição aleatória para a comida
+         */
+        function gerarNovaComida() {
+            let novaComida;
+            
+            // Gera posições até encontrar uma que não esteja na cobra
+            do {
+                novaComida = {
+                    x: Math.floor(Math.random() * LARGURA_TABULEIRO),
+                    y: Math.floor(Math.random() * ALTURA_TABULEIRO)
+                };
+            } while (posicaoNaCobrinha(novaComida));
+            
+            comida = novaComida;
+            console.log('🍎 Nova comida gerada em:', comida);
+        }
+
+        /**
+         * Verifica se uma posição está ocupada pela cobrinha
+         */
+        function posicaoNaCobrinha(posicao) {
+            return cobrinha.some(segmento => 
+                segmento.x === posicao.x && segmento.y === posicao.y
+            );
+        }
+
+        // ==========================================
+        // DESENHO E INTERFACE
+        // ==========================================
+
+        /**
+         * Desenha tudo na tela
+         */
+        function desenharJogo() {
+            // Limpa a tela
+            ctx.fillStyle = '#a5d6a7';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Desenha a cobrinha
+            desenharCobrinha();
+            
+            // Desenha a comida
+            desenharComida();
+        }
+
+        /**
+         * Desenha a cobrinha no canvas
+         */
+        function desenharCobrinha() {
+            cobrinha.forEach((segmento, index) => {
+                // Cabeça é de cor diferente
+                if (index === 0) {
+                    ctx.fillStyle = '#66bb6a';  // Verde claro para cabeça
+                } else {
+                    ctx.fillStyle = '#2e7d32';  // Verde escuro para corpo
+                }
+                
+                // Desenha o segmento
+                ctx.fillRect(
+                    segmento.x * TAMANHO_CELULA + 2,
+                    segmento.y * TAMANHO_CELULA + 2,
+                    TAMANHO_CELULA - 4,
+                    TAMANHO_CELULA - 4
+                );
+            });
+        }
+
+        /**
+         * Desenha a comida no canvas
+         */
+        function desenharComida() {
+            ctx.fillStyle = '#ff5252';  // Vermelho
+            ctx.fillRect(
+                comida.x * TAMANHO_CELULA + 3,
+                comida.y * TAMANHO_CELULA + 3,
+                TAMANHO_CELULA - 6,
+                TAMANHO_CELULA - 6
+            );
+        }
+
+        /**
+         * Atualiza a pontuação na tela
+         */
+        function atualizarPontuacao() {
+            pontuacaoElemento.textContent = `Pontuação: ${pontuacao}`;
+        }
+
+        // ==========================================
+        // CONTROLES E EVENTOS
+        // ==========================================
+
+        /**
+         * Configura todos os controles (botões e teclado)
+         */
+        function configurarControles() {
+            console.log('🎮 Configurando controles...');
+            
+            // Botões na tela
+            document.getElementById('botaoCima').onclick = () => mudarDirecao('cima');
+            document.getElementById('botaoBaixo').onclick = () => mudarDirecao('baixo');
+            document.getElementById('botaoEsquerda').onclick = () => mudarDirecao('esquerda');
+            document.getElementById('botaoDireita').onclick = () => mudarDirecao('direita');
+            
+            // Botões de ação
+            document.getElementById('botaoReiniciar').onclick = reiniciarJogo;
+            document.getElementById('botaoVelocidade').onclick = mudarVelocidade;
+            
+            // Teclado
+            document.addEventListener('keydown', (evento) => {
+                const tecla = evento.key;
+                
+                if (tecla === 'ArrowUp' || tecla === 'w' || tecla === 'W') {
+                    mudarDirecao('cima');
+                }
+                if (tecla === 'ArrowDown' || tecla === 's' || tecla === 'S') {
+                    mudarDirecao('baixo');
+                }
+                if (tecla === 'ArrowLeft' || tecla === 'a' || tecla === 'A') {
+                    mudarDirecao('esquerda');
+                }
+                if (tecla === 'ArrowRight' || tecla === 'd' || tecla === 'D') {
+                    mudarDirecao('direita');
+                }
+                if (tecla === 'Enter' && !jogoRodando) {
+                    reiniciarJogo();
+                }
+            });
+        }
+
+        /**
+         * Muda a velocidade do jogo
+         */
+        function mudarVelocidade() {
+            velocidadeAtual = (velocidadeAtual + 1) % VELOCIDADES.length;
+            velocidadeJogo = VELOCIDADES[velocidadeAtual];
+            
+            const botao = document.getElementById('botaoVelocidade');
+            botao.textContent = `⚡ Velocidade: ${NOMES_VELOCIDADES[velocidadeAtual]}`;
+            
+            // Reinicia o timer com nova velocidade
+            if (jogoRodando) {
+                iniciarLoopJogo();
+            }
+            
+            console.log('⚡ Velocidade alterada para:', NOMES_VELOCIDADES[velocidadeAtual]);
+        }
+
+        // ==========================================
+        // EFEITOS SONOROS (SIMPLES)
+        // ==========================================
+
+        /**
+         * Toca som quando come comida
+         */
+        function tocarSomComida() {
+            // Som simples usando Web Audio API
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.value = 800;
+                oscillator.type = 'sine';
+                gainNode.gain.value = 0.1;
+                
+                oscillator.start();
+                oscillator.stop(audioContext.currentTime + 0.1);
+            } catch (erro) {
+                console.log('Som não pôde ser reproduzido:', erro);
+            }
+        }
+
+        /**
+         * Toca som de game over
+         */
+        function tocarSomGameOver() {
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.value = 200;
+                oscillator.type = 'sawtooth';
+                gainNode.gain.value = 0.1;
+                
+                oscillator.start();
+                oscillator.stop(audioContext.currentTime + 0.5);
+            } catch (erro) {
+                console.log('Som não pôde ser reproduzido:', erro);
+            }
+        }
+
+        // ==========================================
+        // INICIALIZAÇÃO
+        // ==========================================
+
+        /**
+         * Quando a página carrega, inicia o jogo
+         */
+        window.addEventListener('load', function() {
+            console.log('📱 Página carregada, iniciando jogo...');
+            iniciarJogo();
+        });
+
+        // ==========================================
+        // FIM DO CÓDIGO
+        // ==========================================
+    </script>
+</body>
+</html>
