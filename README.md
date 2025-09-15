@@ -25,17 +25,4 @@ Os jogos podem ser desenvolvidos com diferentes tecnologias, incluindo:
 - C/C++
 - Outras linguagens conforme necessário
 
-## 📁 Estrutura do Repositório
 
-```bash
-mini-jogos/
-│
-├── snake-game/
-│   ├── main.py
-│   ├── README.md
-│   └── ...
-│
-├── outro-jogo/
-│   └── ...
-│
-└── README.md
